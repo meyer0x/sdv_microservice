@@ -1,0 +1,143 @@
+version: '3.8'
+
+services:
+  consul:
+    image: hashicorp/consul:latest
+    ports:
+      - "8500:8500"
+    networks:
+      - microservices-network
+    healthcheck:
+      test: ["CMD", "consul", "members"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: schools
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./school-service/migrations:/docker-entrypoint-initdb.d
+    networks:
+      - microservices-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U user -d schools"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  mongodb:
+    image: mongo:latest
+    volumes:
+      - mongo-data:/data/db
+      - ./student-service/migrations:/docker-entrypoint-initdb.d
+    networks:
+      - microservices-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  school-service-1:
+    build: ./school-service
+    environment:
+      PORT: 3001
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: schools
+      POSTGRES_HOST: postgres
+      CONSUL_HOST: consul
+      HOST: school-service-1
+      SERVICE_NAME: school-service
+    networks:
+      - microservices-network
+    depends_on:
+      consul:
+        condition: service_healthy
+      postgres:
+        condition: service_started
+    
+  school-service-2:
+    build: ./school-service
+    environment:
+      PORT: 3011
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: schools
+      POSTGRES_HOST: postgres
+      CONSUL_HOST: consul
+      HOST: school-service-2
+      SERVICE_NAME: school-service
+    networks:
+      - microservices-network
+    depends_on:
+      consul:
+        condition: service_healthy
+      postgres:
+        condition: service_started
+
+  student-service-1:
+    build: ./student-service
+    environment:
+      PORT: 3002
+      MONGODB_URI: mongodb://mongodb:27017
+      CONSUL_HOST: consul
+      SERVICE_NAME: student-service
+      HOST: student-service-1
+    networks:
+      - microservices-network
+    depends_on:
+      consul:
+        condition: service_healthy
+      mongodb:
+        condition: service_started
+  student-service-2:
+    build: ./student-service
+    environment:
+      PORT: 3012
+      MONGODB_URI: mongodb://mongodb:27017
+      CONSUL_HOST: consul
+      SERVICE_NAME: student-service
+      HOST: student-service-2
+    networks:
+      - microservices-network
+    depends_on:
+      consul:
+        condition: service_healthy
+      mongodb:
+        condition: service_started
+
+  gateway:
+    build: ./gateway-service
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      CONSUL_HOST: consul
+    networks:
+      - microservices-network
+    depends_on:
+      consul:
+        condition: service_healthy
+      school-service-1:
+        condition: service_started
+      student-service-1:
+        condition: service_started
+      school-service-2:
+        condition: service_started
+      student-service-2:
+        condition: service_started
+
+networks:
+  microservices-network:
+    name: microservices-network
+    driver: bridge
+
+volumes:
+  postgres-data:
+  mongo-data: 
