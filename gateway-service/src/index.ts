@@ -1,26 +1,17 @@
 import { serve } from "@hono/node-server";
 import axios from "axios";
-import Consul from "consul";
 import { Hono } from "hono";
+import { authMiddleware, guestMiddleware } from "./middleware/auth";
+import { getServiceInstance } from "./utils";
 
 const app = new Hono();
 const port = process.env.PORT || 3000;
 
-const consul = new Consul({
-  host: process.env.CONSUL_HOST || "localhost",
-  port: 8500,
-});
-
-// Load balancing function
-async function getServiceInstance(serviceName: string) {
-  const services = await consul.catalog.service.nodes(serviceName);
-  if (services.length === 0) {
-    throw new Error(`No instances found for service: ${serviceName}`);
-  }
-  // Simple round-robin
-  const instance = services[Math.floor(Math.random() * services.length)];
-  return `http://${instance.ServiceAddress}:${instance.ServicePort}`;
-}
+// Définir les middlewares d'authentification en premier
+app.use("/api/students", authMiddleware);
+app.use("/api/schools", authMiddleware);
+app.use("/api/students/*", authMiddleware);
+app.use("/api/schools/*", authMiddleware);
 
 // Route pour les écoles
 app.all("/api/schools", async (c) => {
@@ -131,4 +122,50 @@ app.all("/api/students/:id", async (c) => {
   }
 });
 
+app.use("/api/auth/*", guestMiddleware);
+app.post("/api/auth/register", async (c) => {
+  try {
+    const baseUrl = await getServiceInstance("auth-service");
+    const fullUrl = `${baseUrl}/register`;
+
+    console.log(`Forwarding request to: ${fullUrl}`);
+
+    const response = await axios({
+      method: "POST",
+      url: fullUrl,
+      data: JSON.stringify(await c.req.json()),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    return c.json(response.data);
+  } catch (error) {
+    console.error("Error in gateway service:", error);
+    return c.json({ error: "Service unavailable" }, 503);
+  }
+});
+
+app.post("/api/auth/login", async (c) => {
+  try {
+    const baseUrl = await getServiceInstance("auth-service");
+    const fullUrl = `${baseUrl}/login`;
+
+    console.log(`Forwarding request to: ${fullUrl}`);
+
+    const response = await axios({
+      method: "POST",
+      url: fullUrl,
+      data: JSON.stringify(await c.req.json()),
+      headers: {
+        "Content-Type": "application/json",
+      },
+    });
+
+    return c.json(response.data);
+  } catch (error) {
+    console.error("Error in gateway service:", error);
+    return c.json({ error: "Service unavailable" }, 503);
+  }
+});
 serve({ fetch: app.fetch, port: Number(port) });

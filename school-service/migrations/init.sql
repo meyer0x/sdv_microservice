@@ -26,4 +26,18 @@ CREATE TRIGGER update_schools_updated_at
 INSERT INTO schools (name, address, director_name) VALUES
     ('École Polytechnique', '91120 Palaiseau', 'François Bouchet'),
     ('HEC Paris', '78350 Jouy-en-Josas', 'Eloïc Peyrache'),
-    ('Sciences Po Paris', '75007 Paris', 'Mathias Vicherat'); 
+    ('Sciences Po Paris', '75007 Paris', 'Mathias Vicherat');
+
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password VARCHAR(255) NOT NULL,
+    role VARCHAR(50) NOT NULL DEFAULT 'user',
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TRIGGER update_users_updated_at
+    BEFORE UPDATE ON users
+    FOR EACH ROW
+    EXECUTE FUNCTION update_updated_at_column(); 

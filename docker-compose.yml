@@ -133,6 +133,25 @@ services:
       student-service-2:
         condition: service_started
 
+  auth-service:
+    build: ./auth-service
+    environment:
+      PORT: 3003
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: schools
+      POSTGRES_HOST: postgres
+      CONSUL_HOST: consul
+      HOST: auth-service
+      JWT_SECRET: your-secret-key
+    networks:
+      - microservices-network
+    depends_on:
+      consul:
+        condition: service_healthy
+      postgres:
+        condition: service_started
+
 networks:
   microservices-network:
     name: microservices-network

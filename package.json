@@ -1,0 +1,5 @@
+{
+  "scripts": {
+    "docker-start": "docker-compose down -v && docker-compose up --build -d"
+  }
+}
